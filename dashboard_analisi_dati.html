@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="it" class="theme-dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Data Analysis</title>
+    
+    <!-- Tailwind CSS per lo styling rapido e moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400..700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons per le icone -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Tabulator: Libreria per tabelle interattive -->
+    <link id="tabulator-theme-dark" href="https://unpkg.com/tabulator-tables@5.6.1/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    <link id="tabulator-theme-light" href="https://unpkg.com/tabulator-tables@5.6.1/dist/css/tabulator.min.css" rel="stylesheet" disabled>
+
+
+    <style>
+        /* CSS Variables per il theming */
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --panel-bg-color: transparent; /* Rimosso sfondo pannello */
+            --panel-border-color: rgba(255, 255, 255, 0.1);
+            --placeholder-text-color: #6b7280;
+            --hover-bg-color: rgba(255, 255, 255, 0.05);
+            --resizer-color: rgba(255, 255, 255, 0.1);
+            --input-bg-color: #2d2d2d;
+        }
+
+        html.theme-light {
+            --bg-color: #f3f4f6;
+            --text-color: #111827;
+            --panel-bg-color: transparent;
+            --panel-border-color: rgba(0, 0, 0, 0.1);
+            --placeholder-text-color: #9ca3af;
+            --hover-bg-color: rgba(0, 0, 0, 0.05);
+            --resizer-color: rgba(0, 0, 0, 0.1);
+            --input-bg-color: #e5e7eb;
+        }
+
+        /* Stile base e transizioni */
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
+            overflow: hidden;
+        }
+        
+        /* Stile per i pannelli */
+        .panel {
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+        }
+        
+        /* Stile per i pannelli ridimensionabili */
+        .resizer {
+            flex-shrink: 0;
+            background-color: transparent;
+            transition: border-color 0.2s ease;
+        }
+        .resizer-vertical {
+            width: 5px;
+            cursor: col-resize;
+            border-right: 1px solid var(--resizer-color);
+        }
+        .resizer-horizontal {
+            height: 5px;
+            cursor: row-resize;
+            border-bottom: 1px solid var(--resizer-color);
+        }
+        .resizer:hover, .resizer-active {
+             border-color: #3b82f6 !important;
+        }
+
+        body.sidebar-collapsed #panel-sidebar {
+            flex-basis: 0 !important;
+            min-width: 0 !important;
+            padding: 0;
+            opacity: 0;
+            transition: all 0.3s ease-in-out;
+        }
+         body.sidebar-collapsed .resizer-vertical {
+            display: none;
+        }
+        
+        /* Linguetta per riaprire il sidebar */
+        #sidebar-reopen-tab {
+            display: none;
+        }
+        body.sidebar-collapsed #sidebar-reopen-tab {
+            display: flex;
+        }
+
+        /* Modalità Fullscreen per i risultati */
+        body.results-fullscreen #panel-sidebar,
+        body.results-fullscreen .resizer,
+        body.results-fullscreen #panel-editor,
+        body.results-fullscreen #sidebar-reopen-tab {
+            display: none;
+        }
+        body.results-fullscreen #panel-main {
+            flex-basis: 100% !important;
+            padding: 0;
+        }
+         body.results-fullscreen #panel-results {
+            height: 100vh;
+        }
+
+        /* Stili per Tab e Controlli Grafico */
+        .tab.active {
+            color: var(--text-color);
+            border-color: #3b82f6;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: flex;
+        }
+        #chart-controls select, #chart-controls .btn, #language-selector, #results-filter-input {
+            background-color: var(--input-bg-color);
+            border: 1px solid var(--panel-border-color);
+        }
+        
+        /* Stili per la modale Cheatsheet */
+        #cheatsheet-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+        #cheatsheet-content {
+            background-color: var(--bg-color);
+            border: 1px solid var(--panel-border-color);
+        }
+        #cheatsheet-content h3 {
+            border-bottom: 1px solid var(--panel-border-color);
+            color: #3b82f6; /* Blu per i titoli */
+        }
+        #cheatsheet-content code {
+            background-color: var(--input-bg-color);
+            color: #f97316; /* Arancione per il codice */
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        html.theme-light #cheatsheet-content code {
+            color: #d97706;
+        }
+        .cheatsheet-section {
+            border: 1px solid var(--panel-border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .join-diagram {
+            width: 120px;
+            height: 100px;
+            stroke: var(--text-color);
+            stroke-width: 1;
+            fill: none;
+        }
+        .join-diagram .highlight {
+            fill: #3b82f6;
+            fill-opacity: 0.5;
+        }
+
+        /* Scrollbar personalizzate */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        html.theme-light ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+        html.theme-light ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.3); }
+
+        /* Animazioni e transizioni */
+        .btn { transition: all 0.2s ease-in-out; border-radius: 6px; }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }
+        
+        /* Stile per il loader */
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Stile per notifiche custom */
+        #notification {
+            position: fixed; top: 20px; right: 20px;
+            padding: 12px 20px; border-radius: 8px;
+            color: white; z-index: 1000; opacity: 0;
+            transform: translateX(100%);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        #notification.show { opacity: 1; transform: translateX(0); }
+
+        /* Stili per Schema Explorer */
+        #schema-explorer details { margin-bottom: 0.5rem; }
+        #schema-explorer summary { cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+        #schema-explorer summary:hover { background-color: var(--hover-bg-color); }
+        #schema-explorer ul { list-style: none; padding-left: 20px; }
+        #schema-explorer li { padding: 2px 0; font-size: 0.8rem; cursor: pointer; border-radius: 4px; padding-left: 4px; }
+        #schema-explorer li:hover { background-color: var(--hover-bg-color); }
+        #schema-explorer .data-type { color: #9ca3af; }
+        html.theme-light #schema-explorer .data-type { color: #6b7280; }
+
+        .placeholder-text {
+            color: var(--placeholder-text-color);
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-row">
+    <div id="loader-overlay" class="fixed inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center z-50">
+        <div class="loader"></div>
+        <p id="loader-message" class="mt-4 text-lg text-gray-300">Inizializzazione database...</p>
+    </div>
+    
+    <button id="sidebar-reopen-tab" class="btn fixed top-4 left-4 z-20 bg-gray-700 hover:bg-gray-600 p-2 items-center justify-center" title="Apri Sidebar">
+        <i class="ph ph-caret-right text-xl"></i>
+    </button>
+
+    <!-- Sidebar Sinistra -->
+    <aside id="panel-sidebar" class="panel" style="flex-basis: 25%; min-width: 280px;">
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <i class="ph-duotone ph-database text-3xl text-blue-400"></i>
+                <h1 class="text-lg font-bold" data-translate-key="appTitle">Offline Data Analysis</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                 <button id="sidebar-toggle" class="btn bg-gray-700 hover:bg-gray-600 text-white font-bold p-2" title="Chiudi Sidebar">
+                     <i id="sidebar-toggle-icon" class="ph ph-caret-left text-xl"></i>
+                </button>
+                <button id="theme-toggle" class="btn bg-gray-700 hover:bg-gray-600 text-white font-bold p-2" title="Cambia Tema">
+                    <i id="theme-icon" class="ph ph-sun text-xl"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="flex flex-col gap-2 mb-6">
+             <div class="flex items-center gap-2">
+                <i class="ph ph-translate text-lg"></i>
+                 <select id="language-selector" class="w-full rounded-md p-2 text-sm">
+                    <option value="it">Italiano</option>
+                    <option value="en">English</option>
+                    <option value="sq">Shqip</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="zh">中文</option>
+                </select>
+            </div>
+            <label for="file-upload" class="btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 cursor-pointer flex items-center justify-center gap-2">
+                <i class="ph ph-file-plus"></i><span data-translate-key="uploadFile">Carica File</span>
+            </label>
+            <input id="file-upload" type="file" class="hidden" accept=".csv, .xlsx, .xls, .json" multiple>
+            <div class="grid grid-cols-2 gap-2">
+                 <label for="import-db-input" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 cursor-pointer flex items-center justify-center gap-2">
+                    <i class="ph ph-upload-simple"></i><span data-translate-key="importDb">Importa</span>
+                </label>
+                <input id="import-db-input" type="file" class="hidden" accept=".db, .sqlite, .sqlite3">
+                <button id="export-db" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 cursor-pointer flex items-center justify-center gap-2">
+                    <i class="ph ph-download-simple"></i><span data-translate-key="exportDb">Esporta</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-grow flex flex-col min-h-0">
+             <div class="flex items-center gap-2 mb-3 border-t border-[var(--panel-border-color)] pt-4">
+                <i class="ph ph-books text-xl text-yellow-400"></i>
+                <h2 class="text-lg font-semibold" data-translate-key="dbSchema">Schema DB</h2>
+            </div>
+            <div id="schema-explorer" class="flex-grow overflow-auto">
+                <p class="placeholder-text text-sm" data-translate-key="loadDataToSeeSchema">Carica dati per vedere lo schema.</p>
+            </div>
+        </div>
+    </aside>
+
+    <div class="resizer resizer-vertical"></div>
+
+    <!-- Area Principale (Editor + Risultati) -->
+    <main id="panel-main" class="panel p-0 flex flex-col flex-grow relative">
+        <!-- Pannello Editor -->
+        <div id="panel-editor" class="panel" style="flex-basis: 40%;">
+            <div class="flex items-center justify-between gap-2 mb-3">
+                 <div class="flex items-center gap-2">
+                    <i class="ph ph-code text-xl text-green-400"></i>
+                    <h2 class="text-lg font-semibold" data-translate-key="sqlEditor">Editor SQL</h2>
+                </div>
+                <div class="flex gap-2">
+                     <button id="cheatsheet-toggle" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-1 px-3 text-sm flex items-center justify-center gap-2" title="SQL Cheatsheet">
+                        <i class="ph ph-question"></i>
+                    </button>
+                    <button id="run-query" class="btn bg-green-600 hover:bg-green-500 text-white font-bold py-1 px-3 text-sm flex items-center justify-center gap-2">
+                        <i class="ph ph-play"></i><span data-translate-key="runQuery">Esegui (F9)</span>
+                    </button>
+                    <button id="clear-editor" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-1 px-3 text-sm flex items-center justify-center gap-2">
+                        <i class="ph ph-eraser"></i><span data-translate-key="clear">Pulisci</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-grow relative">
+                <div id="editor-container" class="absolute inset-0"></div>
+            </div>
+            <div id="query-error" class="mt-2 text-red-400 text-sm hidden"></div>
+        </div>
+
+        <div class="resizer resizer-horizontal"></div>
+
+        <!-- Pannello Risultati -->
+        <div id="panel-results" class="panel" style="flex-basis: 60%;">
+            <div class="flex flex-col sm:flex-row justify-between items-start mb-4 gap-3">
+                 <div class="flex items-center border-b border-[var(--panel-border-color)]">
+                    <button id="tab-table" class="tab active px-4 py-2 text-sm font-semibold border-b-2">
+                        <span class="flex items-center gap-2"><i class="ph ph-table"></i> <span data-translate-key="tableTab">Tabella</span> <span id="results-count" class="text-xs placeholder-text font-normal ml-1"></span></span>
+                    </button>
+                    <button id="tab-chart" class="tab px-4 py-2 text-sm font-semibold text-gray-400 border-b-2 border-transparent" disabled>
+                        <span class="flex items-center gap-2"><i class="ph ph-chart-bar"></i> <span data-translate-key="chartTab">Grafico</span></span>
+                    </button>
+                </div>
+                <div id="table-controls" class="flex items-center gap-2">
+                    <button id="fullscreen-results" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold p-2 text-sm" disabled title="Schermo Intero">
+                        <i id="fullscreen-icon" class="ph ph-corners-out text-lg"></i>
+                    </button>
+                    <span class="text-sm mx-2 border-l border-[var(--panel-border-color)] pl-4" data-translate-key="export">Esporta:</span>
+                    <button id="export-csv" class="btn bg-purple-600 hover:bg-purple-500 text-white font-bold p-2 text-sm" disabled title="Esporta CSV"><i class="ph ph-file-csv text-lg"></i></button>
+                    <button id="export-json" class="btn bg-purple-600 hover:bg-purple-500 text-white font-bold p-2 text-sm" disabled title="Esporta JSON"><i class="ph ph-file-code text-lg"></i></button>
+                    <button id="export-xlsx" class="btn bg-purple-600 hover:bg-purple-500 text-white font-bold p-2 text-sm" disabled title="Esporta Excel"><i class="ph ph-file-x text-lg"></i></button>
+                </div>
+            </div>
+            
+            <!-- Contenuto Tabella -->
+            <div id="table-content" class="tab-content active flex-col flex-grow overflow-auto relative min-h-0">
+               <div class="mb-2">
+                    <input type="search" id="results-filter-input" class="w-full md:w-1/2 lg:w-1/3 rounded-md p-2 text-sm" placeholder="Filtra risultati..." disabled>
+                </div>
+               <div id="placeholder" class="h-full flex flex-col items-center justify-center text-center placeholder-text">
+                    <i class="ph-duotone ph-table text-6xl mb-4"></i>
+                    <h3 class="text-xl font-semibold" data-translate-key="resultsPlaceholderTitle">I risultati appariranno qui</h3>
+               </div>
+               <div id="tabulator-table" class="hidden flex-grow"></div>
+            </div>
+
+            <!-- Contenuto Grafico -->
+            <div id="chart-content" class="tab-content flex-col flex-grow overflow-auto relative min-h-0">
+                <div id="chart-controls" class="flex flex-wrap items-center gap-4 mb-4 pb-4 border-b border-[var(--panel-border-color)]">
+                     <div class="flex flex-col">
+                        <label for="chart-type" class="text-xs mb-1 placeholder-text" data-translate-key="chartControlsTitle">Tipo Grafico</label>
+                        <select id="chart-type" class="rounded-md p-2 text-sm">
+                            <option value="bar" data-translate-key="chartTypeBar">Barre</option>
+                            <option value="line" data-translate-key="chartTypeLine">Linee</option>
+                            <option value="pie" data-translate-key="chartTypePie">Torta</option>
+                            <option value="scatter" data-translate-key="chartTypeScatter">Scatter</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col">
+                        <label id="label-x-axis" for="chart-x-axis" class="text-xs mb-1 placeholder-text" data-translate-key="chartXAxisLabel">Asse X / Etichette</label>
+                        <select id="chart-x-axis" class="rounded-md p-2 text-sm"></select>
+                    </div>
+                    <div class="flex flex-col">
+                        <label id="label-y-axis" for="chart-y-axis" class="text-xs mb-1 placeholder-text" data-translate-key="chartYAxisLabel">Asse Y / Valori</label>
+                        <select id="chart-y-axis" class="rounded-md p-2 text-sm"></select>
+                    </div>
+                    <div class="flex flex-col self-end">
+                        <button id="generate-chart" class="btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 text-sm flex items-center justify-center gap-2">
+                            <i class="ph ph-chart-bar-horizontal"></i> <span data-translate-key="generateChart">Genera</span>
+                        </button>
+                    </div>
+                     <div class="flex-grow"></div>
+                     <div class="flex flex-col self-end">
+                        <button id="export-chart" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 text-sm flex items-center justify-center gap-2">
+                            <i class="ph ph-image"></i> <span data-translate-key="exportChart">Esporta</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="plotly-chart-container" class="flex-grow w-full h-full">
+                    <div id="placeholder-chart" class="h-full flex flex-col items-center justify-center text-center placeholder-text">
+                        <i class="ph-duotone ph-chart-pie-slice text-6xl mb-4"></i>
+                        <h3 class="text-xl font-semibold" data-translate-key="chartPlaceholderTitle">Il grafico apparirà qui</h3>
+                        <p class="mt-1 text-sm" data-translate-key="chartPlaceholderSubtitle">Seleziona le colonne e genera un grafico.</p>
+                   </div>
+                   <div id="plotly-chart" class="w-full h-full"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modale Cheatsheet -->
+    <div id="cheatsheet-modal" class="fixed inset-0 z-40 items-center justify-center hidden" style="background-color: rgba(0,0,0,0.6);">
+        <div id="cheatsheet-content" class="w-11/12 max-w-5xl h-5/6 rounded-lg shadow-xl flex flex-col p-6">
+            <div class="flex justify-between items-center mb-4 pb-2">
+                <h2 class="text-xl font-bold flex items-center gap-2"><i class="ph ph-book-open text-blue-400"></i> SQLite Cheatsheet</h2>
+                <button id="cheatsheet-close" class="p-2 rounded-full hover:bg-[var(--hover-bg-color)]"><i class="ph ph-x text-2xl"></i></button>
+            </div>
+            <div class="flex-grow overflow-y-auto pr-2 text-sm space-y-4">
+                <div class="cheatsheet-section">
+                    <h3 class="font-bold text-lg mb-2 mt-4">Comandi DQL (Query)</h3>
+                    <p><code>SELECT col1, col2 FROM tbl</code>: Seleziona colonne specifiche.</p>
+                    <p><code>SELECT * FROM tbl</code>: Seleziona tutte le colonne.</p>
+                    <p><code>SELECT col1 AS a FROM tbl</code>: Usa un alias per una colonna.</p>
+                    <p><code>SELECT DISTINCT col1 FROM tbl</code>: Seleziona solo valori unici.</p>
+                    <p><code>SELECT * FROM tbl WHERE prezzo > 100 AND cat = 'Elettronica'</code>: Filtra righe con condizioni multiple.</p>
+                    <p><code>SELECT * FROM tbl WHERE nome LIKE 'A%'</code>: Trova nomi che iniziano con 'A'. Usa <code>%</code> (qualunque stringa) e <code>_</code> (singolo carattere).</p>
+                    <p><code>SELECT * FROM tbl WHERE cat IN ('Libri', 'Film')</code>: Filtra per valori in una lista.</p>
+                    <p><code>SELECT * FROM tbl WHERE anno BETWEEN 2020 AND 2022</code>: Filtra per un intervallo di valori.</p>
+                    <p><code>SELECT * FROM tbl ORDER BY col1 ASC, col2 DESC</code>: Ordina i risultati.</p>
+                    <p><code>SELECT * FROM tbl LIMIT 10 OFFSET 5</code>: Salta 5 righe e ne mostra 10.</p>
+                </div>
+                 <div class="cheatsheet-section">
+                    <h3 class="font-bold text-lg mb-2 mt-4">Comandi DML (Manipolazione Dati)</h3>
+                    <p><code>INSERT INTO tbl (col1, col2) VALUES ('val1', 123)</code>: Inserisce una nuova riga.</p>
+                    <p><code>UPDATE tbl SET col1 = 'nuovo' WHERE id = 1</code>: Aggiorna una riga esistente.</p>
+                    <p><code>DELETE FROM tbl WHERE stato = 'inattivo'</code>: Cancella righe.</p>
+                </div>
+
+                <div class="cheatsheet-section">
+                    <h3 class="font-bold text-lg mb-2 mt-4">JOINs</h3>
+                    <p class="text-xs mb-4">I JOIN combinano righe da due o più tabelle basandosi su una colonna correlata.</p>
+                    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
+                        <div class="flex flex-col items-center">
+                            <b>INNER JOIN</b>
+                            <p class="text-xs mb-2">Restituisce solo le righe con corrispondenza in <strong>entrambe</strong> le tabelle.</p>
+                            <svg class="join-diagram"><circle cx="40" cy="50" r="30"></circle><circle cx="80" cy="50" r="30"></circle><path class="highlight" d="M 65,30.358 A 30 30 0 0 1 65,69.642 A 30 30 0 0 1 65,30.358 Z"></path></svg>
+                            <code>SELECT * FROM t1 JOIN t2 ON t1.id=t2.id</code>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <b>LEFT JOIN</b>
+                            <p class="text-xs mb-2">Restituisce <strong>tutte</strong> le righe della tabella sinistra e le corrispondenze della destra.</p>
+                             <svg class="join-diagram"><circle cx="40" cy="50" r="30" class="highlight"></circle><circle cx="80" cy="50" r="30"></circle></svg>
+                            <code>SELECT * FROM t1 LEFT JOIN t2 ON t1.id=t2.id</code>
+                        </div>
+                         <div class="flex flex-col items-center">
+                            <b>CROSS JOIN</b>
+                            <p class="text-xs mb-2">Restituisce il prodotto cartesiano di entrambe le tabelle.</p>
+                             <svg class="join-diagram"><rect class="highlight" x="5" y="15" width="110" height="70" rx="10"></rect><circle cx="40" cy="50" r="30"></circle><circle cx="80" cy="50" r="30"></circle></svg>
+                            <code>SELECT * FROM t1 CROSS JOIN t2</code>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="cheatsheet-section">
+                    <h3 class="font-bold text-lg mb-2 mt-4">Funzioni di Aggregazione</h3>
+                    <p><code>COUNT(col)</code>, <code>SUM(col)</code>, <code>AVG(col)</code>, <code>MIN(col)</code>, <code>MAX(col)</code>.</p>
+                    <p><code>SELECT cat, AVG(prezzo) FROM prodotti GROUP BY cat</code>: Calcola il prezzo medio per categoria.</p>
+                    <p><code>SELECT cat, COUNT(*) FROM prodotti GROUP BY cat HAVING COUNT(*) > 10</code>: Mostra solo categorie con più di 10 prodotti.</p>
+                </div>
+
+                <div class="cheatsheet-section">
+                    <h3 class="font-bold text-lg mb-2 mt-4">Funzioni Comuni con Esempi</h3>
+                    <p><b>Stringa:</b> <code>LOWER('CIAO')</code> &rarr; 'ciao' | <code>UPPER('test')</code> &rarr; 'TEST' | <code>LENGTH('abc')</code> &rarr; 3</p>
+                    <p><code>SUBSTR('abcdef', 3, 2)</code> &rarr; 'cd' | <code>REPLACE('testo', 't', 'x')</code> &rarr; 'xesto'</p>
+                    
+                    <p class="mt-2"><b>Matematiche:</b> <code>ROUND(12.345, 2)</code> &rarr; 12.35 | <code>ABS(-10)</code> &rarr; 10</p>
+                    
+                    <p class="mt-2"><b>Data e Ora:</b> <code>DATE('now', '+1 day')</code> | <code>STRFTIME('%Y-%m', 'now')</code></p>
+                    
+                    <p class="mt-2"><b>Altro:</b> <code>CAST('123' AS INTEGER)</code> | <code>COALESCE(NULL, 'default')</code> &rarr; 'default'</p>
+                </div>
+
+                <div class="cheatsheet-section">
+                    <h3 class="font-bold text-lg mb-2 mt-4">Espressioni Avanzate</h3>
+                    <p><b>CASE WHEN:</b> <code>SELECT nome, CASE WHEN p > 100 THEN 'Costoso' ELSE 'OK' END FROM prodotti</code></p>
+                    
+                    <p class="mt-2"><b>Subquery:</b> <code>SELECT * FROM prodotti WHERE prezzo > (SELECT AVG(prezzo) FROM prodotti)</code></p>
+                    
+                    <p class="mt-2"><b>Common Table Expressions (CTE):</b></p>
+                    <p><code>WITH top_cat AS (SELECT cat FROM vendite GROUP BY cat ORDER BY SUM(imp) DESC LIMIT 3) SELECT * FROM prodotti WHERE cat IN top_cat;</code></p>
+                    
+                    <p class="mt-2"><b>Funzioni Finestra:</b></p>
+                    <p><code>ROW_NUMBER() OVER (PARTITION BY cat ORDER BY prezzo DESC) as rank</code>: Numera i prodotti in ogni categoria per prezzo.</p>
+                    <p><code>LAG(prezzo, 1, 0) OVER (ORDER BY data)</code>: Prende il prezzo del giorno precedente.</p>
+                </div>
+                 <div class="cheatsheet-section">
+                    <h3 class="font-bold text-lg mb-2 mt-4">Comandi DDL (Definizione Dati)</h3>
+                    <p><code>CREATE TABLE nuovo (id INTEGER PRIMARY KEY, nome TEXT)</code>: Crea una nuova tabella.</p>
+                    <p><code>ALTER TABLE tbl ADD COLUMN email TEXT</code>: Aggiunge una colonna.</p>
+                    <p><code>DROP TABLE vecchio</code>: Elimina una tabella.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="notification"></div>
+
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@5.6.1/dist/js/tabulator.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+    <script>
+        // --- Stato Globale ---
+        let db, editor, table, SQL;
+        let currentTableName = null;
+        
+        // --- Localizzazione ---
+        const i18n = {
+            currentLang: 'it',
+            translations: {
+                it: {
+                    appTitle: "Offline Data Analysis", closeSidebar: "Chiudi Sidebar", openSidebar: "Apri Sidebar", changeTheme: "Cambia Tema",
+                    uploadFile: "Carica File", importDb: "Importa", exportDb: "Esporta", dbSchema: "Schema DB",
+                    loadDataToSeeSchema: "Carica dati per vedere lo schema.", sqlEditor: "Editor SQL", runQuery: "Esegui (F9)",
+                    clear: "Pulisci", results: "Risultati", tableTab: "Tabella", chartTab: "Grafico", fullscreen: "Schermo Intero",
+                    exitFullscreen: "Esci da Schermo Intero", export: "Esporta:", exportCsv: "Esporta CSV", exportJson: "Esporta JSON",
+                    exportXlsx: "Esporta Excel", resultsPlaceholderTitle: "I risultati appariranno qui", chartControlsTitle: "Tipo Grafico",
+                    chartTypeBar: "Barre", chartTypeLine: "Linee", chartTypePie: "Torta", chartTypeScatter: "Scatter",
+                    chartXAxisLabel: "Asse X / Etichette", chartYAxisLabel: "Asse Y / Valori", chartPieLabels: "Etichette",
+                    chartPieValues: "Valori", generateChart: "Genera", exportChart: "Esporta",
+                    chartPlaceholderTitle: "Il grafico apparirà qui", chartPlaceholderSubtitle: "Seleziona le colonne e genera un grafico.",
+                    rows: "righe", noTablesInDb: "Nessuna tabella nel DB.", errorReadingSchema: "Errore nel leggere lo schema.",
+                    initializingDb: "Inizializzazione database...", dbReady: "Database pronto!", initializationError: "Errore di inizializzazione.",
+                    noQueryToRun: "Nessuna query da eseguire.", queryRunWithNoResults: "Query eseguita, nessun risultato.",
+                    noDataToDisplay: "Nessun dato da visualizzare.", selectColumnsForChart: "Seleziona le colonne per il grafico.",
+                    processingFiles: "Processo i file...", tableLoaded: "Tabella {tableName} caricata.", emptyFile: "File {fileName} vuoto.",
+                    errorProcessingFile: "Errore nel processare {fileName}.", dbExported: "Database esportato!", dbExportError: "Errore esportazione DB.",
+                    importingDb: "Importo database...", dbImported: "Database importato!", invalidDbFile: "File database non valido.",
+                    rowUpdated: "Riga aggiornata!", updateError: "Errore aggiornamento.", tableNotFound: "Tabella non trovata, impossibile aggiornare.",
+                    rowIdNotFound: "ID riga non trovato. Prova con una query SELECT.", filterResultsPlaceholder: "Filtra risultati..."
+                },
+                en: {
+                    appTitle: "Offline Data Analysis", closeSidebar: "Close Sidebar", openSidebar: "Open Sidebar", changeTheme: "Change Theme",
+                    uploadFile: "Upload File", importDb: "Import", exportDb: "Export", dbSchema: "DB Schema",
+                    loadDataToSeeSchema: "Load data to see the schema.", sqlEditor: "SQL Editor", runQuery: "Run (F9)",
+                    clear: "Clear", results: "Results", tableTab: "Table", chartTab: "Chart", fullscreen: "Fullscreen",
+                    exitFullscreen: "Exit Fullscreen", export: "Export:", exportCsv: "Export CSV", exportJson: "Export JSON",
+                    exportXlsx: "Export Excel", resultsPlaceholderTitle: "Results will appear here", chartControlsTitle: "Chart Type",
+                    chartTypeBar: "Bar", chartTypeLine: "Line", chartTypePie: "Pie", chartTypeScatter: "Scatter",
+                    chartXAxisLabel: "X-Axis / Labels", chartYAxisLabel: "Y-Axis / Values", chartPieLabels: "Labels",
+                    chartPieValues: "Values", generateChart: "Generate", exportChart: "Export",
+                    chartPlaceholderTitle: "The chart will appear here", chartPlaceholderSubtitle: "Select columns and generate a chart.",
+                    rows: "rows", noTablesInDb: "No tables in DB.", errorReadingSchema: "Error reading schema.",
+                    initializingDb: "Initializing database...", dbReady: "Database ready!", initializationError: "Initialization error.",
+                    noQueryToRun: "No query to run.", queryRunWithNoResults: "Query executed, no results.",
+                    noDataToDisplay: "No data to display.", selectColumnsForChart: "Select columns for the chart.",
+                    processingFiles: "Processing files...", tableLoaded: "Table {tableName} loaded.", emptyFile: "File {fileName} is empty.",
+                    errorProcessingFile: "Error processing {fileName}.", dbExported: "Database exported!", dbExportError: "DB export error.",
+                    importingDb: "Importing database...", dbImported: "Database imported!", invalidDbFile: "Invalid database file.",
+                    rowUpdated: "Row updated!", updateError: "Update error.", tableNotFound: "Table not found, cannot update.",
+                    rowIdNotFound: "Row ID not found. Try a simple SELECT query.", filterResultsPlaceholder: "Filter results..."
+                },
+                sq: {
+                    appTitle: "Analiza e të Dhënave Jashtë Linje", closeSidebar: "Mbyll Panelin", openSidebar: "Hap Panelin", changeTheme: "Ndrysho Temën",
+                    uploadFile: "Ngarko Skedar", importDb: "Importo", exportDb: "Eksporto", dbSchema: "Skema e DB",
+                    loadDataToSeeSchema: "Ngarko të dhëna për të parë skemën.", sqlEditor: "Editor SQL", runQuery: "Ekzekuto (F9)",
+                    clear: "Pastro", results: "Rezultatet", tableTab: "Tabela", chartTab: "Grafiku", fullscreen: "Ekran i Plotë",
+                    exitFullscreen: "Dil nga Ekrani i Plotë", export: "Eksporto:", exportCsv: "Eksporto CSV", exportJson: "Eksporto JSON",
+                    exportXlsx: "Eksporto Excel", resultsPlaceholderTitle: "Rezultatet do të shfaqen këtu", chartControlsTitle: "Lloji i Grafikut",
+                    chartTypeBar: "Shtylla", chartTypeLine: "Vija", chartTypePie: "Byrek", chartTypeScatter: "Shpërndarje",
+                    chartXAxisLabel: "Boshti X / Etiketat", chartYAxisLabel: "Boshti Y / Vlerat", chartPieLabels: "Etiketat",
+                    chartPieValues: "Vlerat", generateChart: "Gjenero", exportChart: "Eksporto",
+                    chartPlaceholderTitle: "Grafiku do të shfaqet këtu", chartPlaceholderSubtitle: "Zgjidh kolonat dhe gjenero një grafik.",
+                    rows: "rreshta", noTablesInDb: "Asnjë tabelë në DB.", errorReadingSchema: "Gabim gjatë leximit të skemës.",
+                    initializingDb: "Duke inicializuar bazën e të dhënave...", dbReady: "Baza e të dhënave gati!", initializationError: "Gabim inicializimi.",
+                    noQueryToRun: "Asnjë pyetje për të ekzekutuar.", queryRunWithNoResults: "Pyetja u ekzekutua, pa rezultate.",
+                    noDataToDisplay: "Asnjë e dhënë për të shfaqur.", selectColumnsForChart: "Zgjidh kolonat për grafikun.",
+                    processingFiles: "Duke përpunuar skedarët...", tableLoaded: "Tabela {tableName} u ngarkua.", emptyFile: "Skedari {fileName} është bosh.",
+                    errorProcessingFile: "Gabim gjatë përpunimit të {fileName}.", dbExported: "Baza e të dhënave u eksportua!", dbExportError: "Gabim në eksportimin e DB.",
+                    importingDb: "Duke importuar bazën e të dhënave...", dbImported: "Baza e të dhënave u importua!", invalidDbFile: "Skedar i pavlefshëm i bazës së të dhënave.",
+                    rowUpdated: "Rreshti u përditësua!", updateError: "Gabim përditësimi.", tableNotFound: "Tabela nuk u gjet, nuk mund të përditësohet.",
+                    rowIdNotFound: "ID e rreshtit nuk u gjet. Provo një pyetje të thjeshtë SELECT.", filterResultsPlaceholder: "Filtro rezultatet..."
+                },
+                fr: {
+                    appTitle: "Analyse de Données Hors Ligne", closeSidebar: "Fermer le volet", openSidebar: "Ouvrir le volet", changeTheme: "Changer de thème",
+                    uploadFile: "Charger un fichier", importDb: "Importer", exportDb: "Exporter", dbSchema: "Schéma de la BDD",
+                    loadDataToSeeSchema: "Chargez des données pour voir le schéma.", sqlEditor: "Éditeur SQL", runQuery: "Exécuter (F9)",
+                    clear: "Effacer", results: "Résultats", tableTab: "Tableau", chartTab: "Graphique", fullscreen: "Plein écran",
+                    exitFullscreen: "Quitter le plein écran", export: "Exporter :", exportCsv: "Exporter en CSV", exportJson: "Exporter en JSON",
+                    exportXlsx: "Exporter en Excel", resultsPlaceholderTitle: "Les résultats apparaîtront ici", chartControlsTitle: "Type de graphique",
+                    chartTypeBar: "Barres", chartTypeLine: "Lignes", chartTypePie: "Circulaire", chartTypeScatter: "Nuage de points",
+                    chartXAxisLabel: "Axe X / Étiquettes", chartYAxisLabel: "Axe Y / Valeurs", chartPieLabels: "Étiquettes",
+                    chartPieValues: "Valeurs", generateChart: "Générer", exportChart: "Exporter",
+                    chartPlaceholderTitle: "Le graphique apparaîtra ici", chartPlaceholderSubtitle: "Sélectionnez des colonnes et générez un graphique.",
+                    rows: "lignes", noTablesInDb: "Aucune table dans la BDD.", errorReadingSchema: "Erreur de lecture du schéma.",
+                    initializingDb: "Initialisation de la base de données...", dbReady: "Base de données prête !", initializationError: "Erreur d'initialisation.",
+                    noQueryToRun: "Aucune requête à exécuter.", queryRunWithNoResults: "Requête exécutée, aucun résultat.",
+                    noDataToDisplay: "Pas de données à afficher.", selectColumnsForChart: "Sélectionnez les colonnes pour le graphique.",
+                    processingFiles: "Traitement des fichiers...", tableLoaded: "Table {tableName} chargée.", emptyFile: "Le fichier {fileName} est vide.",
+                    errorProcessingFile: "Erreur lors du traitement de {fileName}.", dbExported: "Base de données exportée !", dbExportError: "Erreur d'exportation de la BDD.",
+                    importingDb: "Importation de la base de données...", dbImported: "Base de données importée !", invalidDbFile: "Fichier de base de données invalide.",
+                    rowUpdated: "Ligne mise à jour !", updateError: "Erreur de mise à jour.", tableNotFound: "Table non trouvée, mise à jour impossible.",
+                    rowIdNotFound: "ID de ligne non trouvé. Essayez une requête SELECT simple.", filterResultsPlaceholder: "Filtrer les résultats..."
+                },
+                de: {
+                    appTitle: "Offline-Datenanalyse", closeSidebar: "Seitenleiste schließen", openSidebar: "Seitenleiste öffnen", changeTheme: "Thema ändern",
+                    uploadFile: "Datei hochladen", importDb: "Importieren", exportDb: "Exportieren", dbSchema: "DB-Schema",
+                    loadDataToSeeSchema: "Laden Sie Daten, um das Schema zu sehen.", sqlEditor: "SQL-Editor", runQuery: "Ausführen (F9)",
+                    clear: "Löschen", results: "Ergebnisse", tableTab: "Tabelle", chartTab: "Diagramm", fullscreen: "Vollbild",
+                    exitFullscreen: "Vollbild beenden", export: "Exportieren:", exportCsv: "CSV exportieren", exportJson: "JSON exportieren",
+                    exportXlsx: "Excel exportieren", resultsPlaceholderTitle: "Ergebnisse werden hier angezeigt", chartControlsTitle: "Diagrammtyp",
+                    chartTypeBar: "Balken", chartTypeLine: "Linien", chartTypePie: "Kuchen", chartTypeScatter: "Streuung",
+                    chartXAxisLabel: "X-Achse / Beschriftungen", chartYAxisLabel: "Y-Achse / Werte", chartPieLabels: "Beschriftungen",
+                    chartPieValues: "Werte", generateChart: "Generieren", exportChart: "Exportieren",
+                    chartPlaceholderTitle: "Das Diagramm wird hier angezeigt", chartPlaceholderSubtitle: "Wählen Sie Spalten aus und generieren Sie ein Diagramm.",
+                    rows: "Zeilen", noTablesInDb: "Keine Tabellen in der DB.", errorReadingSchema: "Fehler beim Lesen des Schemas.",
+                    initializingDb: "Initialisiere Datenbank...", dbReady: "Datenbank bereit!", initializationError: "Initialisierungsfehler.",
+                    noQueryToRun: "Keine Abfrage zum Ausführen.", queryRunWithNoResults: "Abfrage ausgeführt, keine Ergebnisse.",
+                    noDataToDisplay: "Keine Daten zum Anzeigen.", selectColumnsForChart: "Wählen Sie Spalten für das Diagramm aus.",
+                    processingFiles: "Verarbeite Dateien...", tableLoaded: "Tabelle {tableName} geladen.", emptyFile: "Datei {fileName} ist leer.",
+                    errorProcessingFile: "Fehler bei der Verarbeitung von {fileName}.", dbExported: "Datenbank exportiert!", dbExportError: "Fehler beim DB-Export.",
+                    importingDb: "Importiere Datenbank...", dbImported: "Datenbank importiert!", invalidDbFile: "Ungültige Datenbankdatei.",
+                    rowUpdated: "Zeile aktualisiert!", updateError: "Aktualisierungsfehler.", tableNotFound: "Tabelle nicht gefunden, kann nicht aktualisiert werden.",
+                    rowIdNotFound: "Zeilen-ID nicht gefunden. Versuchen Sie eine einfache SELECT-Abfrage.", filterResultsPlaceholder: "Ergebnisse filtern..."
+                },
+                zh: {
+                    appTitle: "离线数据分析", closeSidebar: "关闭侧边栏", openSidebar: "打开侧边栏", changeTheme: "切换主题",
+                    uploadFile: "上传文件", importDb: "导入", exportDb: "导出", dbSchema: "数据库结构",
+                    loadDataToSeeSchema: "加载数据以查看结构。", sqlEditor: "SQL 编辑器", runQuery: "运行 (F9)",
+                    clear: "清除", results: "结果", tableTab: "表格", chartTab: "图表", fullscreen: "全屏",
+                    exitFullscreen: "退出全屏", export: "导出：", exportCsv: "导出 CSV", exportJson: "导出 JSON",
+                    exportXlsx: "导出 Excel", resultsPlaceholderTitle: "结果将显示在此处", chartControlsTitle: "图表类型",
+                    chartTypeBar: "条形图", chartTypeLine: "折线图", chartTypePie: "饼图", chartTypeScatter: "散点图",
+                    chartXAxisLabel: "X轴 / 标签", chartYAxisLabel: "Y轴 / 值", chartPieLabels: "标签",
+                    chartPieValues: "值", generateChart: "生成", exportChart: "导出",
+                    chartPlaceholderTitle: "图表将显示在此处", chartPlaceholderSubtitle: "选择列并生成图表。",
+                    rows: "行", noTablesInDb: "数据库中没有表。", errorReadingSchema: "读取结构时出错。",
+                    initializingDb: "正在初始化数据库...", dbReady: "数据库准备就绪！", initializationError: "初始化错误。",
+                    noQueryToRun: "没有要运行的查询。", queryRunWithNoResults: "查询已执行，无结果。",
+                    noDataToDisplay: "无数据显示。", selectColumnsForChart: "请为图表选择列。",
+                    processingFiles: "正在处理文件...", tableLoaded: "表 {tableName} 已加载。", emptyFile: "文件 {fileName} 为空。",
+                    errorProcessingFile: "处理 {fileName} 时出错。", dbExported: "数据库已导出！", dbExportError: "数据库导出错误。",
+                    importingDb: "正在导入数据库...", dbImported: "数据库已导入！", invalidDbFile: "无效的数据库文件。",
+                    rowUpdated: "行已更新！", updateError: "更新错误。", tableNotFound: "找不到表，无法更新。",
+                    rowIdNotFound: "找不到行 ID。请尝试简单的 SELECT 查询。", filterResultsPlaceholder: "筛选结果..."
+                }
+            },
+            setLang(lang) {
+                this.currentLang = lang;
+                localStorage.setItem('sql-analyzer-language', lang);
+                this.applyTranslations();
+            },
+            t(key, params = {}) {
+                let translation = this.translations[this.currentLang]?.[key] || key;
+                for (const param in params) {
+                    translation = translation.replace(`{${param}}`, params[param]);
+                }
+                return translation;
+            },
+            applyTranslations() {
+                document.querySelectorAll('[data-translate-key]').forEach(el => {
+                    const key = el.dataset.translateKey;
+                    const translation = this.t(key);
+                    if (el.dataset.translateAttr) {
+                        el.setAttribute(el.dataset.translateAttr, translation);
+                    } else {
+                        const icon = el.querySelector('i');
+                        if (icon && el.tagName !== 'H1' && el.tagName !== 'OPTION') {
+                            el.innerHTML = ''; el.appendChild(icon); el.appendChild(document.createTextNode(' ' + translation));
+                        } else { el.textContent = translation; }
+                    }
+                });
+                ui.sidebarToggle.title = this.t('closeSidebar');
+                ui.sidebarReopenTab.title = this.t('openSidebar');
+                ui.themeToggle.title = this.t('changeTheme');
+                ui.loaderMessage.textContent = this.t('initializingDb');
+                const isFullscreen = document.body.classList.contains('results-fullscreen');
+                ui.fullscreenResultsBtn.title = isFullscreen ? this.t('exitFullscreen') : this.t('fullscreen');
+                ui.exportCsvBtn.title = this.t('exportCsv');
+                ui.exportJsonBtn.title = this.t('exportJson');
+                ui.exportXlsxBtn.title = this.t('exportXlsx');
+                 ui.resultsFilterInput.placeholder = this.t('filterResultsPlaceholder');
+                if (editor && editor.getModel()) {
+                    editor.getModel().setValue(`/* ${this.t('runQuery')} */\nSELECT * FROM ...;`);
+                }
+            }
+        };
+
+        // --- Elementi DOM ---
+        const ui = {
+            loaderOverlay: document.getElementById('loader-overlay'),
+            loaderMessage: document.getElementById('loader-message'),
+            fileUpload: document.getElementById('file-upload'),
+            importDbInput: document.getElementById('import-db-input'),
+            exportDbBtn: document.getElementById('export-db'),
+            runQueryBtn: document.getElementById('run-query'),
+            clearEditorBtn: document.getElementById('clear-editor'),
+            editorContainer: document.getElementById('editor-container'),
+            schemaExplorer: document.getElementById('schema-explorer'),
+            queryError: document.getElementById('query-error'),
+            placeholder: document.getElementById('placeholder'),
+            tabulatorTable: document.getElementById('tabulator-table'),
+            notification: document.getElementById('notification'),
+            themeToggle: document.getElementById('theme-toggle'),
+            themeIcon: document.getElementById('theme-icon'),
+            sidebarToggle: document.getElementById('sidebar-toggle'),
+            sidebarReopenTab: document.getElementById('sidebar-reopen-tab'),
+            fullscreenResultsBtn: document.getElementById('fullscreen-results'),
+            fullscreenIcon: document.getElementById('fullscreen-icon'),
+            exportCsvBtn: document.getElementById('export-csv'),
+            exportJsonBtn: document.getElementById('export-json'),
+            exportXlsxBtn: document.getElementById('export-xlsx'),
+            exportButtons: Array.from(document.getElementById('table-controls').querySelectorAll('button')),
+            tabTable: document.getElementById('tab-table'),
+            tabChart: document.getElementById('tab-chart'),
+            tableContent: document.getElementById('table-content'),
+            chartContent: document.getElementById('chart-content'),
+            chartControls: document.getElementById('chart-controls'),
+            chartType: document.getElementById('chart-type'),
+            chartXAxis: document.getElementById('chart-x-axis'),
+            chartYAxis: document.getElementById('chart-y-axis'),
+            generateChartBtn: document.getElementById('generate-chart'),
+            exportChartBtn: document.getElementById('export-chart'),
+            plotlyChartContainer: document.getElementById('plotly-chart-container'),
+            placeholderChart: document.getElementById('placeholder-chart'),
+            plotlyChart: document.getElementById('plotly-chart'),
+            labelXAxis: document.getElementById('label-x-axis'),
+            labelYAxis: document.getElementById('label-y-axis'),
+            resultsCount: document.getElementById('results-count'),
+            languageSelector: document.getElementById('language-selector'),
+            cheatsheetToggle: document.getElementById('cheatsheet-toggle'),
+            cheatsheetModal: document.getElementById('cheatsheet-modal'),
+            cheatsheetClose: document.getElementById('cheatsheet-close'),
+            resultsFilterInput: document.getElementById('results-filter-input'),
+        };
+
+        // --- Funzioni Utilità ---
+        const showNotification = (message, type = 'info') => {
+            const colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600' };
+            ui.notification.textContent = message;
+            ui.notification.className = `${colors[type]} show`;
+            setTimeout(() => ui.notification.classList.remove('show'), 3000);
+        };
+        const sanitizeTableName = name => `"${name.replace(/[^a-zA-Z0-9_]/g, '_')}"`;
+        const setExportButtonsState = disabled => ui.exportButtons.forEach(btn => btn.disabled = disabled);
+
+        // --- Gestione Tema e UI ---
+        const applyTheme = (theme) => {
+            const isLight = theme === 'light';
+            document.documentElement.classList.toggle('theme-light', isLight);
+            document.documentElement.classList.toggle('theme-dark', !isLight);
+            ui.themeIcon.className = `ph ph-${isLight ? 'moon' : 'sun'} text-xl`;
+            document.getElementById('tabulator-theme-dark').disabled = isLight;
+            document.getElementById('tabulator-theme-light').disabled = !isLight;
+            if (editor) monaco.editor.setTheme(isLight ? 'vs' : 'vs-dark');
+            if (document.getElementById('plotly-chart').offsetParent) generateChart();
+            localStorage.setItem('sql-analyzer-theme', theme);
+        };
+        
+        const toggleTheme = () => {
+            const currentTheme = localStorage.getItem('sql-analyzer-theme') || 'dark';
+            applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+        };
+
+        const applySidebarState = (state) => {
+            const isCollapsed = state === 'collapsed';
+            document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+            ui.sidebarToggle.title = isCollapsed ? i18n.t('openSidebar') : i18n.t('closeSidebar');
+            localStorage.setItem('sql-analyzer-sidebar', state);
+            setTimeout(() => { if(editor) { editor.layout(); } }, 300);
+        };
+
+        const toggleSidebar = () => {
+            const currentState = localStorage.getItem('sql-analyzer-sidebar') || 'expanded';
+            applySidebarState(currentState === 'expanded' ? 'collapsed' : 'expanded');
+        };
+
+        const toggleResultsFullscreen = () => {
+            const isFullscreen = document.body.classList.toggle('results-fullscreen');
+            ui.fullscreenIcon.className = `ph ph-corners-${isFullscreen ? 'in' : 'out'} text-lg`;
+            ui.fullscreenResultsBtn.title = isFullscreen ? i18n.t('exitFullscreen') : i18n.t('fullscreen');
+            setTimeout(() => { 
+                if (editor) editor.layout();
+                if (table) table.redraw(true);
+                if (document.getElementById('plotly-chart').offsetParent) Plotly.Plots.resize('plotly-chart');
+            }, 100);
+        };
+        
+        const switchTab = (tabName) => {
+            if (tabName === 'chart') {
+                ui.tabTable.classList.remove('active');
+                ui.tabChart.classList.add('active');
+                ui.tableContent.classList.remove('active');
+                ui.chartContent.classList.add('active');
+            } else {
+                ui.tabChart.classList.remove('active');
+                ui.tabTable.classList.add('active');
+                ui.chartContent.classList.remove('active');
+                ui.tableContent.classList.add('active');
+            }
+        };
+
+        // --- Inizializzazione ---
+        const initializeApp = async () => {
+            try {
+                // Monaco setup is now safe to run
+                setupMonacoAutocomplete();
+                editor = monaco.editor.create(ui.editorContainer, {
+                    value: '',
+                    language: 'sql',
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                    fontFamily: 'JetBrains Mono',
+                });
+                editor.addAction({
+                    id: 'run-sql-query',
+                    label: 'Esegui Query SQL',
+                    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, monaco.KeyCode.F9],
+                    run: () => executeQuery(),
+                });
+
+                SQL = await initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}` });
+                db = new SQL.Database();
+                
+                i18n.setLang(localStorage.getItem('sql-analyzer-language') || 'it');
+                ui.languageSelector.value = i18n.currentLang;
+                applyTheme(localStorage.getItem('sql-analyzer-theme') || 'dark');
+                
+                applySidebarState(localStorage.getItem('sql-analyzer-sidebar') || 'expanded');
+                
+                ui.loaderOverlay.style.display = 'none';
+                showNotification(i18n.t('dbReady'), 'success');
+                
+                window.addEventListener('resize', () => { 
+                    if (table) table.redraw(true);
+                    if (document.getElementById('plotly-chart').offsetParent) Plotly.Plots.resize('plotly-chart');
+                });
+                initResizers();
+            } catch (err) {
+                console.error("Initialization Error:", err);
+                ui.loaderMessage.textContent = i18n.t('initializationError');
+            }
+        };
+
+        window.addEventListener('load', () => {
+             require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
+             require(['vs/editor/editor.main'], () => {
+                initializeApp();
+             });
+        });
+        
+        // --- Gestione Grafici ---
+        const populateChartControls = (columns) => {
+            ui.chartXAxis.innerHTML = '';
+            ui.chartYAxis.innerHTML = '';
+            columns.forEach(col => {
+                if (col.toLowerCase() === 'rowid') return;
+                const optionX = document.createElement('option');
+                optionX.value = col;
+                optionX.textContent = col;
+                ui.chartXAxis.appendChild(optionX);
+
+                const optionY = document.createElement('option');
+                optionY.value = col;
+                optionY.textContent = col;
+                ui.chartYAxis.appendChild(optionY);
+            });
+        };
+
+        const generateChart = () => {
+            if (!table) {
+                showNotification(i18n.t('noDataToDisplay'), 'error');
+                return;
+            }
+
+            const chartType = ui.chartType.value;
+            const xAxisCol = ui.chartXAxis.value;
+            const yAxisCol = ui.chartYAxis.value;
+
+            if (!xAxisCol || !yAxisCol) {
+                showNotification(i18n.t('selectColumnsForChart'), 'error');
+                return;
+            }
+
+            const data = table.getData();
+            const xData = data.map(row => row[xAxisCol]);
+            const yData = data.map(row => row[yAxisCol]);
+            
+            const isLight = document.documentElement.classList.contains('theme-light');
+            const trace = {
+                x: xData,
+                y: yData,
+                type: chartType,
+                mode: chartType === 'line' ? 'lines+markers' : 'markers'
+            };
+
+            if (chartType === 'pie') {
+                trace.labels = xData;
+                trace.values = yData;
+                delete trace.x;
+                delete trace.y;
+            }
+
+            const layout = {
+                xaxis: { title: xAxisCol, color: isLight ? '#111827' : '#e0e0e0', gridcolor: isLight ? '#d1d5db' : '#374151' },
+                yaxis: { title: yAxisCol, color: isLight ? '#111827' : '#e0e0e0', gridcolor: isLight ? '#d1d5db' : '#374151' },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                font: { color: isLight ? '#111827' : '#e0e0e0', family: 'JetBrains Mono' },
+                margin: { l: 50, r: 20, t: 20, b: 50 }
+            };
+
+            ui.placeholderChart.style.display = 'none';
+            ui.plotlyChart.style.display = 'block';
+            Plotly.newPlot('plotly-chart', [trace], layout, {responsive: true, displaylogo: false});
+        };
+        
+        // --- Gestione DB e Schema ---
+        const renderSchemaExplorer = () => {
+            if (!db) return;
+            ui.schemaExplorer.innerHTML = '';
+            try {
+                const tablesRes = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';");
+                if (!tablesRes.length || !tablesRes[0].values.length) {
+                    ui.schemaExplorer.innerHTML = `<p class="placeholder-text text-sm">${i18n.t('noTablesInDb')}</p>`;
+                    return;
+                }
+                tablesRes[0].values.forEach(row => {
+                    const tableName = row[0];
+                    const details = document.createElement('details');
+                    const summary = document.createElement('summary');
+                    const [countRes] = db.exec(`SELECT COUNT(*) FROM "${tableName}"`);
+                    const rowCount = countRes.values[0][0];
+
+                    summary.innerHTML = `<strong class="text-blue-400 cursor-pointer hover:underline" data-table-name="${tableName}">${tableName}</strong> <span class="text-xs placeholder-text">(${rowCount} ${i18n.t('rows')})</span>`;
+                    details.appendChild(summary);
+
+                    const ul = document.createElement('ul');
+                    const [colsRes] = db.exec(`PRAGMA table_info("${tableName}")`);
+                    colsRes.values.forEach(col => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<span class="hover:underline" data-col-name="${col[1]}">${col[1]}</span> <span class="data-type">${col[2]}</span>`;
+                        ul.appendChild(li);
+                    });
+                    details.appendChild(ul);
+                    ui.schemaExplorer.appendChild(details);
+                });
+            } catch (err) {
+                console.error("Schema Render Error:", err);
+                ui.schemaExplorer.innerHTML = `<p class="text-red-400 text-sm">${i18n.t('errorReadingSchema')}</p>`;
+            }
+        };
+
+        const updateAll = () => {
+            renderSchemaExplorer();
+            if (table) table.destroy();
+            ui.tabulatorTable.classList.add('hidden');
+            ui.placeholder.classList.remove('hidden');
+            setExportButtonsState(true);
+            ui.tabChart.disabled = true;
+            ui.resultsCount.textContent = '';
+            if (typeof Plotly !== 'undefined') Plotly.purge('plotly-chart');
+            ui.placeholderChart.style.display = 'flex';
+        };
+        
+        const findTableNameInQuery = query => {
+            const match = query.match(/FROM\s+`?("?)([\w_]+)\1`?/i);
+            return match ? `"${match[2]}"` : null;
+        };
+        
+        // --- Gestione Pannelli Ridimensionabili ---
+        const initResizers = () => {
+            document.querySelectorAll('.resizer').forEach(resizer => {
+                const prevPanel = resizer.previousElementSibling;
+                const nextPanel = resizer.nextElementSibling;
+                const isHorizontal = resizer.classList.contains('resizer-horizontal');
+                
+                resizer.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    resizer.classList.add('resizer-active');
+                    let startPos = isHorizontal ? e.clientY : e.clientX;
+                    let startSizePrev = isHorizontal ? prevPanel.offsetHeight : prevPanel.offsetWidth;
+                    
+                    const panels = document.querySelectorAll('.panel');
+                    panels.forEach(p => p.style.transition = 'none');
+
+                    const onMouseMove = moveEvent => {
+                        const currentPos = isHorizontal ? moveEvent.clientY : moveEvent.clientX;
+                        const delta = currentPos - startPos;
+                        const newPrevSize = startSizePrev + delta;
+
+                        const totalSize = prevPanel.parentElement.getBoundingClientRect()[isHorizontal ? 'height' : 'width'];
+                        const newPrevBasis = (newPrevSize / totalSize) * 100;
+
+                        if (newPrevBasis > 10 && newPrevBasis < 90) {
+                            prevPanel.style.flexBasis = `${newPrevBasis}%`;
+                            nextPanel.style.flexBasis = `${100 - newPrevBasis}%`;
+                        }
+                    };
+
+                    const onMouseUp = () => {
+                        resizer.classList.remove('resizer-active');
+                        panels.forEach(p => p.style.transition = '');
+                        window.removeEventListener('mousemove', onMouseMove);
+                        window.removeEventListener('mouseup', onMouseUp);
+                        if (editor) editor.layout();
+                        if (table) table.redraw(true);
+                        if (document.getElementById('plotly-chart').offsetParent) Plotly.Plots.resize('plotly-chart');
+                    };
+
+                    window.addEventListener('mousemove', onMouseMove);
+                    window.addEventListener('mouseup', onMouseUp);
+                });
+            });
+        };
+        
+        // --- Autocompletamento Monaco Editor ---
+        const setupMonacoAutocomplete = () => {
+            const sqliteKeywords = [
+                'SELECT', 'FROM', 'WHERE', 'JOIN', 'LEFT JOIN', 'INNER JOIN', 'ON', 'GROUP BY', 'ORDER BY',
+                'ASC', 'DESC', 'LIMIT', 'OFFSET', 'INSERT INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE FROM',
+                'CREATE TABLE', 'DROP TABLE', 'ALTER TABLE', 'ADD COLUMN', 'AND', 'OR', 'NOT', 'IN', 'BETWEEN',
+                'LIKE', 'AS', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'HAVING'
+            ];
+
+            const sqliteFunctions = [
+                'ABS', 'LENGTH', 'LOWER', 'UPPER', 'TRIM', 'SUBSTR', 'ROUND', 'RANDOM',
+                'DATE', 'TIME', 'DATETIME', 'STRFTIME', 'JULIANDAY', 'CAST', 'COALESCE', 'NULLIF'
+            ];
+
+            monaco.languages.registerCompletionItemProvider('sql', {
+                provideCompletionItems: (model, position) => {
+                    const textUntilPosition = model.getValueInRange({
+                        startLineNumber: 1,
+                        startColumn: 1,
+                        endLineNumber: position.lineNumber,
+                        endColumn: position.column
+                    });
+
+                    const aliasMatch = textUntilPosition.match(/(\b[a-zA-Z0-9_]+)\.\s*$/);
+                    if (aliasMatch && db) {
+                        const alias = aliasMatch[1];
+                        const queryText = model.getValue();
+                        
+                        const tableRegex = new RegExp(`FROM\\s+("?[\\w_]+"?)\\s+(?:AS\\s+)?${alias}\\b`, 'i');
+                        const joinRegex = new RegExp(`JOIN\\s+("?[\\w_]+"?)\\s+(?:AS\\s+)?${alias}\\b`, 'i');
+                        let tableMatch = queryText.match(tableRegex) || queryText.match(joinRegex);
+
+                        if (tableMatch) {
+                            const tableName = tableMatch[1].replace(/"/g, '');
+                            try {
+                                const [colsRes] = db.exec(`PRAGMA table_info("${tableName}")`);
+                                const columnSuggestions = colsRes.values.map(col => ({
+                                    label: col[1],
+                                    kind: monaco.languages.CompletionItemKind.Field,
+                                    insertText: col[1],
+                                    detail: col[2]
+                                }));
+                                return { suggestions: columnSuggestions };
+                            } catch (e) {
+                                return { suggestions: [] };
+                            }
+                        }
+                    }
+
+                    const keywordSuggestions = sqliteKeywords.map(keyword => ({
+                        label: keyword,
+                        kind: monaco.languages.CompletionItemKind.Keyword,
+                        insertText: keyword
+                    }));
+                    const functionSuggestions = sqliteFunctions.map(func => ({
+                        label: func,
+                        kind: monaco.languages.CompletionItemKind.Function,
+                        insertText: `${func}()`
+                    }));
+
+                    return { suggestions: [...keywordSuggestions, ...functionSuggestions] };
+                },
+                triggerCharacters: ['.']
+            });
+        };
+
+        // --- Event Listeners ---
+        ui.themeToggle.addEventListener('click', toggleTheme);
+        ui.sidebarToggle.addEventListener('click', toggleSidebar);
+        ui.sidebarReopenTab.addEventListener('click', toggleSidebar);
+        ui.exportDbBtn.addEventListener('click', handleDbExport);
+        ui.importDbInput.addEventListener('change', handleDbImport);
+        ui.fileUpload.addEventListener('change', handleFileUpload);
+        ui.runQueryBtn.addEventListener('click', executeQuery);
+        ui.clearEditorBtn.addEventListener('click', () => editor && editor.setValue(''));
+        ui.fullscreenResultsBtn.addEventListener('click', toggleResultsFullscreen);
+        ui.cheatsheetToggle.addEventListener('click', () => ui.cheatsheetModal.style.display = 'flex');
+        ui.cheatsheetClose.addEventListener('click', () => ui.cheatsheetModal.style.display = 'none');
+        
+        ui.tabTable.addEventListener('click', () => switchTab('table'));
+        ui.tabChart.addEventListener('click', () => switchTab('chart'));
+        ui.generateChartBtn.addEventListener('click', generateChart);
+        ui.exportChartBtn.addEventListener('click', () => Plotly.downloadImage('plotly-chart', {format: 'png', filename: 'grafico_sql_analyzer'}));
+
+        ui.exportCsvBtn.addEventListener('click', () => table && table.download("csv", "data.csv"));
+        ui.exportJsonBtn.addEventListener('click', () => table && table.download("json", "data.json"));
+        ui.exportXlsxBtn.addEventListener('click', () => table && table.download("xlsx", "data.xlsx", {sheetName:"Risultati"}));
+        
+        ui.languageSelector.addEventListener('change', (e) => {
+            i18n.setLang(e.target.value);
+        });
+        ui.resultsFilterInput.addEventListener('input', (e) => {
+            if (table) {
+                table.setFilter(globalTableFilter);
+            }
+        });
+
+        ui.schemaExplorer.addEventListener('click', e => {
+            const target = e.target;
+            if (target.dataset.tableName) {
+                editor.setValue(`SELECT * FROM "${target.dataset.tableName}" LIMIT 100;`);
+                executeQuery();
+            } else if (target.dataset.colName) {
+                const pos = editor.getPosition();
+                editor.executeEdits('schema-click', [{ range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column), text: `"${target.dataset.colName}" ` }]);
+                editor.focus();
+            }
+        });
+        
+        // --- Implementazioni complete funzioni ---
+        async function handleFileUpload(event) {
+             const files = event.target.files;
+            if (!files.length) return;
+            
+            ui.loaderOverlay.style.display = 'flex';
+            ui.loaderMessage.textContent = i18n.t('processingFiles');
+
+            for (const file of files) {
+                try {
+                    const tableName = sanitizeTableName(file.name.split('.').slice(0, -1).join('.'));
+                    const reader = new FileReader();
+                    await new Promise((resolve, reject) => {
+                        reader.onload = async (e) => {
+                            try {
+                                const buffer = e.target.result;
+                                let data;
+                                if (file.name.endsWith('.csv')) {
+                                    data = parseCsvAutoDetect(new TextDecoder("utf-8").decode(buffer));
+                                } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                                    const workbook = XLSX.read(buffer, {type: 'array'});
+                                    data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                                } else if (file.name.endsWith('.json')) {
+                                    data = JSON.parse(new TextDecoder("utf-8").decode(buffer));
+                                }
+                                
+                                if (data && data.length > 0) {
+                                    db.run(`DROP TABLE IF EXISTS ${tableName};`);
+                                    const columns = Object.keys(data[0]);
+                                    db.run(`CREATE TABLE ${tableName} (${columns.map(c => `"${c}" TEXT`).join(',')});`);
+                                    const stmt = db.prepare(`INSERT INTO ${tableName} VALUES (${columns.map(() => '?').join(',')});`);
+                                    data.forEach(row => stmt.run(columns.map(c => row[c] != null ? String(row[c]) : null)));
+                                    stmt.free();
+                                    editor.setValue(`SELECT * FROM ${tableName} LIMIT 100;`);
+                                    showNotification(i18n.t('tableLoaded', {tableName}), 'success');
+                                } else {
+                                     showNotification(i18n.t('emptyFile', {fileName: file.name}), 'error');
+                                }
+                                resolve();
+                            } catch (err) { reject(err); }
+                        };
+                        reader.onerror = reject;
+                        reader.readAsArrayBuffer(file);
+                    });
+                } catch (err) {
+                    console.error(`Errore nel processare ${file.name}:`, err);
+                    showNotification(i18n.t('errorProcessingFile', {fileName: file.name}), 'error');
+                }
+            }
+            updateAll();
+            ui.loaderOverlay.style.display = 'none';
+            event.target.value = '';
+        }
+
+        function handleDbExport() {
+            if (!db) return;
+            try {
+                const blob = new Blob([db.export()], { type: "application/octet-stream" });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `database_${Date.now()}.db`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+                showNotification(i18n.t('dbExported'), "success");
+            } catch (err) { showNotification(i18n.t('dbExportError'), "error"); }
+        }
+
+        function handleDbImport(event) {
+             const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                ui.loaderOverlay.style.display = 'flex';
+                ui.loaderMessage.textContent = i18n.t('importingDb');
+                try {
+                    db = new SQL.Database(new Uint8Array(e.target.result));
+                    updateAll();
+                    showNotification(i18n.t('dbImported'), "success");
+                } catch (err) { showNotification(i18n.t('invalidDbFile'), "error"); }
+                finally {
+                    ui.loaderOverlay.style.display = 'none';
+                    event.target.value = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        const globalTableFilter = (data) => {
+            const filterValue = ui.resultsFilterInput.value.toLowerCase();
+            if (filterValue === "") return true;
+            for (const key in data) {
+                if (String(data[key]).toLowerCase().includes(filterValue)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function executeQuery() {
+            if (!editor) return;
+            let query = '';
+            const selection = editor.getSelection();
+            if (!selection.isEmpty()) {
+                query = editor.getModel().getValueInRange(selection);
+            } else {
+                const fullText = editor.getValue();
+                const offset = editor.getModel().getOffsetAt(editor.getPosition());
+                let start = fullText.lastIndexOf(';', offset - 1) + 1;
+                let end = fullText.indexOf(';', offset);
+                if (end === -1) end = fullText.length;
+                query = fullText.substring(start, end).trim();
+            }
+
+            if (!query) return showNotification(i18n.t('noQueryToRun'), "info");
+
+            ui.queryError.classList.add('hidden');
+            try {
+                let queryToRun = query;
+                if (/^\s*SELECT/i.test(queryToRun) && !/GROUP BY|JOIN|UNION|INTERSECT|EXCEPT/i.test(queryToRun) && !/rowid/i.test(queryToRun.split("FROM")[0])) {
+                     queryToRun = queryToRun.replace(/^\s*SELECT\s+/i, 'SELECT rowid, ');
+                }
+                const results = db.exec(queryToRun);
+                currentTableName = findTableNameInQuery(queryToRun);
+                renderTableWithTabulator(results);
+            } catch (err) {
+                ui.queryError.textContent = err.message;
+                ui.queryError.classList.remove('hidden');
+            }
+        }
+        
+        function parseCsvAutoDetect(csvText) {
+            const lines = csvText.trim().replace(/\r/g, '').split('\n');
+            if (lines.length === 0) return [];
+
+            const sample = lines.slice(0, 10);
+            const delimiters = [',', ';', '|', '\t'];
+            let bestDelimiter = ',';
+            if(sample.length > 0){
+                let minVariance = Infinity;
+
+                delimiters.forEach(delimiter => {
+                    const counts = sample.map(line => (line.split(delimiter).length));
+                    if (counts.every(c => c > 1)) { 
+                        const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+                        const variance = counts.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / counts.length;
+                        if (variance < minVariance) {
+                            minVariance = variance;
+                            bestDelimiter = delimiter;
+                        }
+                    }
+                });
+            }
+            
+            function looksLikeHeader(firstRow, dataRows) {
+                if (dataRows.length === 0) return true;
+                
+                const firstRowValues = firstRow.split(bestDelimiter).map(v => v.trim());
+                const secondRowValues = dataRows[0].split(bestDelimiter).map(v => v.trim());
+                
+                const uniqueCount = new Set(firstRowValues.filter(v => v !== '')).size;
+                const totalCount = firstRowValues.filter(v => v !== '').length;
+                
+                if (uniqueCount / totalCount > 0.7) return true;
+                
+                const firstRowNumeric = firstRowValues.filter(v => !isNaN(parseFloat(v)) && v.trim() !== '').length;
+                const secondRowNumeric = secondRowValues.filter(v => !isNaN(parseFloat(v)) && v.trim() !== '').length;
+
+                if (firstRowNumeric < secondRowNumeric * 0.5) return true;
+                
+                return false;
+            }
+
+            function createUniqueHeaders(headerParts) {
+                const headerCounts = {};
+                const seenHeaders = new Set();
+                return headerParts.map((header, index) => {
+                    let cleanHeader = header.trim()
+                        .replace(/[^\w\s]/g, '_')
+                        .replace(/\s+/g, '_')
+                        .replace(/_+/g, '_')
+                        .replace(/^_+|_+$/g, '');
+                    
+                    if (!cleanHeader) {
+                        cleanHeader = `column_${index + 1}`;
+                    }
+                    
+                    if (/^\d/.test(cleanHeader)) {
+                        cleanHeader = `col_${cleanHeader}`;
+                    }
+                    
+                    let finalHeader = cleanHeader;
+                    let counter = 1;
+                    while (seenHeaders.has(finalHeader.toLowerCase())) {
+                        counter++;
+                        finalHeader = `${cleanHeader}_${counter}`;
+                    }
+                    seenHeaders.add(finalHeader.toLowerCase());
+                    return finalHeader;
+                });
+            }
+
+            const hasHeader = looksLikeHeader(lines[0], lines.slice(1));
+            let header;
+            let dataStartIndex;
+
+            if (hasHeader) {
+                const headerParts = lines[0].split(bestDelimiter);
+                header = createUniqueHeaders(headerParts);
+                dataStartIndex = 1;
+            } else {
+                const columnCount = lines[0].split(bestDelimiter).length;
+                header = Array.from({ length: columnCount }, (_, i) => `column_${i + 1}`);
+                dataStartIndex = 0;
+            }
+
+            const dataRows = lines.slice(dataStartIndex);
+            return dataRows
+                .map(line => {
+                    const values = line.split(bestDelimiter);
+                    if (values.length !== header.length) return null;
+                    const rowObject = {};
+                    header.forEach((key, index) => {
+                        rowObject[key] = values[index] ? values[index].trim() : '';
+                    });
+                    return rowObject;
+                })
+                .filter(obj => obj !== null && Object.values(obj).some(val => val && val.trim() !== ''));
+        }
+
+
+        function renderTableWithTabulator(sqlResults) {
+            const hasResults = sqlResults && sqlResults.length && sqlResults[0].values.length;
+            
+            ui.tabChart.disabled = !hasResults;
+            ui.resultsFilterInput.disabled = !hasResults;
+            if (!hasResults) {
+                switchTab('table');
+                if (typeof Plotly !== 'undefined') Plotly.purge('plotly-chart');
+                ui.placeholderChart.style.display = 'flex';
+            }
+
+            if (!hasResults) {
+                if (table) table.destroy();
+                ui.tabulatorTable.classList.add('hidden');
+                ui.placeholder.classList.remove('hidden');
+                setExportButtonsState(true);
+                ui.resultsCount.textContent = `(0 ${i18n.t('rows')})`;
+                ui.resultsFilterInput.value = '';
+                return showNotification(i18n.t('queryRunWithNoResults'), 'info');
+            }
+            const { columns, values } = sqlResults[0];
+            ui.resultsCount.textContent = `(${values.length} ${i18n.t('rows')})`;
+            
+            const tabulatorColumns = [
+                { title: "#", field: "rowid", hozAlign: "center", width: 80, headerSort: false, frozen: true, download: false },
+                ...columns.map(col => ({ title: col, field: col, editor: "input", headerFilter: "input", minWidth: 100, visible: col.toLowerCase() !== 'rowid' }))
+            ];
+
+            const tabulatorData = values.map(row => columns.reduce((obj, col, i) => ({...obj, [col]: row[i]}), {}));
+            
+            ui.placeholder.classList.add('hidden');
+            ui.tabulatorTable.classList.remove('hidden');
+            if (table) table.destroy();
+            table = new Tabulator("#tabulator-table", {
+                data: tabulatorData, columns: tabulatorColumns,
+                layout: "fitDataStretch", pagination: "local", paginationSize: 15,
+                paginationSizeSelector: [15, 25, 50, 100], movableColumns: true,
+            });
+            table.on("cellEdited", handleCellEdit);
+            setExportButtonsState(false);
+            populateChartControls(columns);
+        }
+
+        function handleCellEdit(cell) {
+             if (!currentTableName) return showNotification(i18n.t('tableNotFound'), 'error');
+            const { rowid } = cell.getRow().getData();
+            if (rowid === undefined) return showNotification(i18n.t('rowIdNotFound'), 'error');
+            try {
+                db.run(`UPDATE ${currentTableName} SET "${cell.getField()}" = ? WHERE "rowid" = ?;`, [cell.getValue(), rowid]);
+                showNotification(i18n.t('rowUpdated'), 'success');
+            } catch (err) { showNotification(i18n.t('updateError'), 'error'); cell.restoreOldValue(); }
+        }
+    </script>
+</body>
+</html>
