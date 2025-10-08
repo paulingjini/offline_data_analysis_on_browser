@@ -217,6 +217,10 @@
         .placeholder-text {
             color: var(--placeholder-text-color);
         }
+        .tabulator-cell.cell-edited {
+            background-color: #3b82f6 !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-row">
@@ -261,7 +265,7 @@
             <label for="file-upload" class="btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 cursor-pointer flex items-center justify-center gap-2">
                 <i class="ph ph-file-plus"></i><span data-translate-key="uploadFile">Carica File</span>
             </label>
-            <input id="file-upload" type="file" class="hidden" accept=".csv, .xlsx, .xls, .json" multiple>
+            <input id="file-upload" type="file" class="hidden" accept=".csv, .xlsx, .xls, .json" multiple disabled>
             <div class="grid grid-cols-2 gap-2">
                  <label for="import-db-input" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 cursor-pointer flex items-center justify-center gap-2">
                     <i class="ph ph-upload-simple"></i><span data-translate-key="importDb">Importa</span>
@@ -327,6 +331,14 @@
                     </button>
                 </div>
                 <div id="table-controls" class="flex items-center gap-2">
+                    <div id="confirm-buttons" class="hidden">
+                        <button id="confirm-changes" class="btn bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 text-sm flex items-center justify-center gap-2">
+                            <i class="ph ph-check"></i> <span data-translate-key="confirmChanges">Conferma Modifiche</span>
+                        </button>
+                        <button id="cancel-changes" class="btn bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 text-sm flex items-center justify-center gap-2">
+                            <i class="ph ph-x"></i> <span data-translate-key="cancelChanges">Annulla</span>
+                        </button>
+                    </div>
                     <button id="fullscreen-results" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold p-2 text-sm" disabled title="Schermo Intero">
                         <i id="fullscreen-icon" class="ph ph-corners-out text-lg"></i>
                     </button>
@@ -499,6 +511,7 @@
         // --- Stato Globale ---
         let db, editor, table, SQL;
         let currentTableName = null;
+        let pendingChanges = [];
         
         // --- Localizzazione ---
         const i18n = {
@@ -523,7 +536,9 @@
                     errorProcessingFile: "Errore nel processare {fileName}.", dbExported: "Database esportato!", dbExportError: "Errore esportazione DB.",
                     importingDb: "Importo database...", dbImported: "Database importato!", invalidDbFile: "File database non valido.",
                     rowUpdated: "Riga aggiornata!", updateError: "Errore aggiornamento.", tableNotFound: "Tabella non trovata, impossibile aggiornare.",
-                    rowIdNotFound: "ID riga non trovato. Prova con una query SELECT.", filterResultsPlaceholder: "Filtra risultati..."
+                    rowIdNotFound: "ID riga non trovato. Prova con una query SELECT.", filterResultsPlaceholder: "Filtra risultati...",
+                    confirmChanges: "Conferma Modifiche", cancelChanges: "Annulla", changesApplied: "Modifiche applicate!",
+                    updatesFailed: "Aggiornamento fallito", changesCanceled: "Modifiche annullate."
                 },
                 en: {
                     appTitle: "Offline Data Analysis", closeSidebar: "Close Sidebar", openSidebar: "Open Sidebar", changeTheme: "Change Theme",
@@ -544,7 +559,9 @@
                     errorProcessingFile: "Error processing {fileName}.", dbExported: "Database exported!", dbExportError: "DB export error.",
                     importingDb: "Importing database...", dbImported: "Database imported!", invalidDbFile: "Invalid database file.",
                     rowUpdated: "Row updated!", updateError: "Update error.", tableNotFound: "Table not found, cannot update.",
-                    rowIdNotFound: "Row ID not found. Try a simple SELECT query.", filterResultsPlaceholder: "Filter results..."
+                    rowIdNotFound: "Row ID not found. Try a simple SELECT query.", filterResultsPlaceholder: "Filter results...",
+                    confirmChanges: "Confirm Changes", cancelChanges: "Cancel", changesApplied: "Changes applied!",
+                    updatesFailed: "Updates failed", changesCanceled: "Changes canceled."
                 },
                 sq: {
                     appTitle: "Analiza e të Dhënave Jashtë Linje", closeSidebar: "Mbyll Panelin", openSidebar: "Hap Panelin", changeTheme: "Ndrysho Temën",
@@ -565,7 +582,9 @@
                     errorProcessingFile: "Gabim gjatë përpunimit të {fileName}.", dbExported: "Baza e të dhënave u eksportua!", dbExportError: "Gabim në eksportimin e DB.",
                     importingDb: "Duke importuar bazën e të dhënave...", dbImported: "Baza e të dhënave u importua!", invalidDbFile: "Skedar i pavlefshëm i bazës së të dhënave.",
                     rowUpdated: "Rreshti u përditësua!", updateError: "Gabim përditësimi.", tableNotFound: "Tabela nuk u gjet, nuk mund të përditësohet.",
-                    rowIdNotFound: "ID e rreshtit nuk u gjet. Provo një pyetje të thjeshtë SELECT.", filterResultsPlaceholder: "Filtro rezultatet..."
+                    rowIdNotFound: "ID e rreshtit nuk u gjet. Provo një pyetje të thjeshtë SELECT.", filterResultsPlaceholder: "Filtro rezultatet...",
+                    confirmChanges: "Konfirmo Ndryshimet", cancelChanges: "Anulo", changesApplied: "Ndryshimet u aplikuan!",
+                    updatesFailed: "Përditësimi dështoi", changesCanceled: "Ndryshimet u anuluan."
                 },
                 fr: {
                     appTitle: "Analyse de Données Hors Ligne", closeSidebar: "Fermer le volet", openSidebar: "Ouvrir le volet", changeTheme: "Changer de thème",
@@ -586,7 +605,9 @@
                     errorProcessingFile: "Erreur lors du traitement de {fileName}.", dbExported: "Base de données exportée !", dbExportError: "Erreur d'exportation de la BDD.",
                     importingDb: "Importation de la base de données...", dbImported: "Base de données importée !", invalidDbFile: "Fichier de base de données invalide.",
                     rowUpdated: "Ligne mise à jour !", updateError: "Erreur de mise à jour.", tableNotFound: "Table non trouvée, mise à jour impossible.",
-                    rowIdNotFound: "ID de ligne non trouvé. Essayez une requête SELECT simple.", filterResultsPlaceholder: "Filtrer les résultats..."
+                    rowIdNotFound: "ID de ligne non trouvé. Essayez une requête SELECT simple.", filterResultsPlaceholder: "Filtrer les résultats...",
+                    confirmChanges: "Confirmer les modifications", cancelChanges: "Annuler", changesApplied: "Modifications appliquées !",
+                    updatesFailed: "Échec des mises à jour", changesCanceled: "Modifications annulées."
                 },
                 de: {
                     appTitle: "Offline-Datenanalyse", closeSidebar: "Seitenleiste schließen", openSidebar: "Seitenleiste öffnen", changeTheme: "Thema ändern",
@@ -607,7 +628,9 @@
                     errorProcessingFile: "Fehler bei der Verarbeitung von {fileName}.", dbExported: "Datenbank exportiert!", dbExportError: "Fehler beim DB-Export.",
                     importingDb: "Importiere Datenbank...", dbImported: "Datenbank importiert!", invalidDbFile: "Ungültige Datenbankdatei.",
                     rowUpdated: "Zeile aktualisiert!", updateError: "Aktualisierungsfehler.", tableNotFound: "Tabelle nicht gefunden, kann nicht aktualisiert werden.",
-                    rowIdNotFound: "Zeilen-ID nicht gefunden. Versuchen Sie eine einfache SELECT-Abfrage.", filterResultsPlaceholder: "Ergebnisse filtern..."
+                    rowIdNotFound: "Zeilen-ID nicht gefunden. Versuchen Sie eine einfache SELECT-Abfrage.", filterResultsPlaceholder: "Ergebnisse filtern...",
+                    confirmChanges: "Änderungen bestätigen", cancelChanges: "Abbrechen", changesApplied: "Änderungen angewendet!",
+                    updatesFailed: "Aktualisierungen fehlgeschlagen", changesCanceled: "Änderungen abgebrochen."
                 },
                 zh: {
                     appTitle: "离线数据分析", closeSidebar: "关闭侧边栏", openSidebar: "打开侧边栏", changeTheme: "切换主题",
@@ -628,7 +651,9 @@
                     errorProcessingFile: "处理 {fileName} 时出错。", dbExported: "数据库已导出！", dbExportError: "数据库导出错误。",
                     importingDb: "正在导入数据库...", dbImported: "数据库已导入！", invalidDbFile: "无效的数据库文件。",
                     rowUpdated: "行已更新！", updateError: "更新错误。", tableNotFound: "找不到表，无法更新。",
-                    rowIdNotFound: "找不到行 ID。请尝试简单的 SELECT 查询。", filterResultsPlaceholder: "筛选结果..."
+                    rowIdNotFound: "找不到行 ID。请尝试简单的 SELECT 查询。", filterResultsPlaceholder: "筛选结果...",
+                    confirmChanges: "确认更改", cancelChanges: "取消", changesApplied: "更改已应用！",
+                    updatesFailed: "更新失败", changesCanceled: "更改已取消。"
                 }
             },
             setLang(lang) {
@@ -718,6 +743,9 @@
             cheatsheetModal: document.getElementById('cheatsheet-modal'),
             cheatsheetClose: document.getElementById('cheatsheet-close'),
             resultsFilterInput: document.getElementById('results-filter-input'),
+            confirmButtons: document.getElementById('confirm-buttons'),
+            confirmChangesBtn: document.getElementById('confirm-changes'),
+            cancelChangesBtn: document.getElementById('cancel-changes'),
         };
 
         // --- Funzioni Utilità ---
@@ -817,6 +845,10 @@
                 ui.loaderOverlay.style.display = 'none';
                 showNotification(i18n.t('dbReady'), 'success');
                 
+                // Enable file inputs now that the DB is ready
+                ui.fileUpload.disabled = false;
+                ui.importDbInput.disabled = false;
+
                 window.addEventListener('resize', () => { 
                     if (table) table.redraw(true);
                     if (document.getElementById('plotly-chart').offsetParent) Plotly.Plots.resize('plotly-chart');
@@ -1087,6 +1119,8 @@
         ui.exportCsvBtn.addEventListener('click', () => table && table.download("csv", "data.csv"));
         ui.exportJsonBtn.addEventListener('click', () => table && table.download("json", "data.json"));
         ui.exportXlsxBtn.addEventListener('click', () => table && table.download("xlsx", "data.xlsx", {sheetName:"Risultati"}));
+        ui.confirmChangesBtn.addEventListener('click', confirmChanges);
+        ui.cancelChangesBtn.addEventListener('click', cancelChanges);
         
         ui.languageSelector.addEventListener('change', (e) => {
             i18n.setLang(e.target.value);
@@ -1155,10 +1189,10 @@
                     });
                 } catch (err) {
                     console.error(`Errore nel processare ${file.name}:`, err);
-                    showNotification(i18n.t('errorProcessingFile', {fileName: file.name}), 'error');
+                    showNotification(`${i18n.t('errorProcessingFile', {fileName: file.name})}: ${err.message}`, 'error');
                 }
             }
-            updateAll();
+            renderSchemaExplorer();
             ui.loaderOverlay.style.display = 'none';
             event.target.value = '';
         }
@@ -1339,6 +1373,7 @@
 
 
         function renderTableWithTabulator(sqlResults) {
+            resetPendingChangesUI(false);
             const hasResults = sqlResults && sqlResults.length && sqlResults[0].values.length;
             
             ui.tabChart.disabled = !hasResults;
@@ -1382,13 +1417,70 @@
         }
 
         function handleCellEdit(cell) {
-             if (!currentTableName) return showNotification(i18n.t('tableNotFound'), 'error');
+            if (!currentTableName) {
+                showNotification(i18n.t('tableNotFound'), 'error');
+                cell.restoreOldValue();
+                return;
+            }
             const { rowid } = cell.getRow().getData();
-            if (rowid === undefined) return showNotification(i18n.t('rowIdNotFound'), 'error');
+            if (rowid === undefined) {
+                showNotification(i18n.t('rowIdNotFound'), 'error');
+                cell.restoreOldValue();
+                return;
+            }
+
+            const existingChangeIndex = pendingChanges.findIndex(c => c.cell.getElement() === cell.getElement());
+            if (existingChangeIndex === -1) {
+                pendingChanges.push({ cell: cell });
+            }
+
+            cell.getElement().classList.add('cell-edited');
+            ui.confirmButtons.classList.remove('hidden');
+        }
+
+        function resetPendingChangesUI(revertValues = false) {
+            if (table) {
+                table.blockRedraw();
+                pendingChanges.forEach(change => {
+                    const cell = change.cell;
+                    if (revertValues) {
+                        cell.restoreOldValue();
+                    }
+                    cell.getElement().classList.remove('cell-edited');
+                });
+                table.restoreRedraw();
+            }
+            pendingChanges = [];
+            ui.confirmButtons.classList.add('hidden');
+        }
+
+        function cancelChanges() {
+            resetPendingChangesUI(true);
+            showNotification(i18n.t('changesCanceled'), 'info');
+        }
+
+        function confirmChanges() {
+            if (!currentTableName) {
+                showNotification(i18n.t('tableNotFound'), 'error');
+                return;
+            }
             try {
-                db.run(`UPDATE ${currentTableName} SET "${cell.getField()}" = ? WHERE "rowid" = ?;`, [cell.getValue(), rowid]);
-                showNotification(i18n.t('rowUpdated'), 'success');
-            } catch (err) { showNotification(i18n.t('updateError'), 'error'); cell.restoreOldValue(); }
+                db.run("BEGIN TRANSACTION;");
+                pendingChanges.forEach(change => {
+                    const cell = change.cell;
+                    const { rowid } = cell.getRow().getData();
+                    if (rowid === undefined) throw new Error(i18n.t('rowIdNotFound'));
+                    db.run(`UPDATE ${currentTableName} SET "${cell.getField()}" = ? WHERE "rowid" = ?;`, [cell.getValue(), rowid]);
+                });
+                db.run("COMMIT;");
+
+                showNotification(i18n.t('changesApplied'), 'success');
+                resetPendingChangesUI(false);
+            } catch (err) {
+                db.run("ROLLBACK;");
+                showNotification(i18n.t('updatesFailed') + ': ' + err.message, 'error');
+                resetPendingChangesUI(true);
+            }
         }
     </script>
 </body>
